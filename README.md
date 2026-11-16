@@ -24,6 +24,23 @@ nothing to wire.
 Requests go to `/auth/v1` under the server's address (or `WincheOptions.endpoints['auth']`) through the app's shared
 `app.http`; tests replace the network with `app.http.useClient`.
 
+## Installation
+
+```bash
+dart pub add winche_core winche_auth
+```
+
+Or add them to `pubspec.yaml`:
+
+```yaml
+dependencies:
+  winche_core: ^1.0.0
+  winche_auth: ^0.1.0
+```
+
+`winche_core` is not optional. It owns the app, the endpoints and the session every Winche package binds to, so an
+app always imports it directly.
+
 ## Signing in
 
 | | |
