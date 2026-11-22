@@ -35,7 +35,7 @@ Or add them to `pubspec.yaml`:
 ```yaml
 dependencies:
   winche_core: ^1.0.0
-  winche_auth: ^0.1.0
+  winche_auth: ^0.2.0
 ```
 
 `winche_core` is not optional. It owns the app, the endpoints and the session every Winche package binds to, so an
@@ -60,7 +60,7 @@ here. If an account with the same verified email already exists, sign-in throws
 
 ## The signed-in user
 
-`currentUser` (uid, email, emailVerified, displayName, photoUrl, isAnonymous, providers, customClaims),
+`currentUser` (uid, email, emailVerified, displayName, photoUrl, photoSource, isAnonymous, providers, customClaims),
 `authStateChanges()` (sign-in and out), `userChanges()` (any change), `getTokenClaims()`, `reload()`,
 `updateProfile()`, `updatePhoto(bytes)` / `removePhoto()` (a small image Winche Auth keeps: shrink it to 256 × 256 first), `changePassword()`, `changeEmail()` (the new address confirms; the old one gets an undo link),
 `sendEmailVerification()`, `linkWithPassword()`, `linkWithIdToken()`, `unlink()`, `deleteAccount()`.
