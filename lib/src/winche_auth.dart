@@ -255,8 +255,29 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
     return currentUser;
   }
 
-  Future<WincheUser> updateProfile({String? displayName, String? photoUrl}) async {
-    final body = await _authed((t) => _send('PATCH', 'me', {'displayName': displayName, 'photoUrl': photoUrl}, token: t));
+  /// Changes the signed-in user's [displayName] and/or [photoUrl] (a link to
+  /// a picture kept elsewhere). Only the fields passed change: fields left out
+  /// stay as they are, so `updateProfile(displayName: 'Ann')` keeps the photo.
+  /// [clearDisplayName] / [clearPhotoUrl] remove a field instead (not together
+  /// with a new value for it). To remove a photo uploaded with [updatePhoto],
+  /// use [removePhoto].
+  Future<WincheUser> updateProfile({
+    String? displayName,
+    String? photoUrl,
+    bool clearDisplayName = false,
+    bool clearPhotoUrl = false,
+  }) async {
+    if (clearDisplayName && displayName != null) {
+      throw ArgumentError('Pass displayName or clearDisplayName, not both.');
+    }
+    if (clearPhotoUrl && photoUrl != null) {
+      throw ArgumentError('Pass photoUrl or clearPhotoUrl, not both.');
+    }
+    final patch = <String, Object?>{
+      if (displayName != null || clearDisplayName) 'displayName': displayName,
+      if (photoUrl != null || clearPhotoUrl) 'photoUrl': photoUrl,
+    };
+    final body = await _authed((t) => _send('PATCH', 'me', patch, token: t));
     await _setUser(WincheUser.fromJson(body));
     return currentUser!;
   }

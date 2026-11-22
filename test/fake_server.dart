@@ -11,6 +11,7 @@ final class FakeAuthServer {
   bool down = false;
   final Set<String> mfaUsers = {};   // emails that need a second step
   final Map<String, List<int>?> photos = {};   // uid → uploaded photo
+  final Map<String, ({String url, String source})> photoUrls = {};   // uid → the user's photoUrl
   int _next = 0;
 
   late final http.Client client = MockClient((request) async {
@@ -22,8 +23,12 @@ final class FakeAuthServer {
       if (uid == null) return _error(401, 'UNAUTHENTICATED', 'Sign in first.');
       final email = users.entries.firstWhere((e) => e.value.uid == uid).key;
       photos[uid] = request.method == 'POST' ? request.bodyBytes : null;
-      final user = {..._user(email), 'photoUrl': photos[uid] == null ? null : 'https://api.example.com/auth/v1/photos/p$uid', 'photoSource': photos[uid] == null ? null : 'upload'};
-      return http.Response(jsonEncode(user), 200, headers: {'content-type': 'application/json'});
+      if (photos[uid] == null) {
+        photoUrls.remove(uid);
+      } else {
+        photoUrls[uid] = (url: 'https://api.example.com/auth/v1/photos/p$uid', source: 'upload');
+      }
+      return http.Response(jsonEncode(_user(email)), 200, headers: {'content-type': 'application/json'});
     }
     final body = request.body.isEmpty ? <String, Object?>{} : jsonDecode(request.body) as Map<String, Object?>;
     switch (path) {
@@ -63,7 +68,22 @@ final class FakeAuthServer {
         if (request.method == 'PATCH') {
           final uid = _uidOf(request);
           final email = users.entries.firstWhere((e) => e.value.uid == uid).key;
-          users[email] = (uid: uid!, password: users[email]!.password, displayName: body['displayName'] as String?);
+          // A patch, as on the server: a field left out stays, an explicit null clears it.
+          final old = users[email]!;
+          users[email] = (
+            uid: uid!,
+            password: old.password,
+            displayName: body.containsKey('displayName') ? body['displayName'] as String? : old.displayName,
+          );
+          if (body.containsKey('photoUrl')) {
+            final url = body['photoUrl'] as String?;
+            photos.remove(uid);
+            if (url == null) {
+              photoUrls.remove(uid);
+            } else {
+              photoUrls[uid] = (url: url, source: 'link');
+            }
+          }
           return http.Response(jsonEncode(_user(email)), 200, headers: {'content-type': 'application/json'});
         }
         return http.Response('', 204);
@@ -90,6 +110,7 @@ final class FakeAuthServer {
     final u = users[email]!;
     return {
       'uid': u.uid, 'email': anonymous ? null : email, 'emailVerified': false, 'displayName': u.displayName,
+      'photoUrl': photoUrls[u.uid]?.url, 'photoSource': photoUrls[u.uid]?.source,
       'isAnonymous': anonymous, 'providers': [anonymous ? 'anonymous' : 'password'], 'customClaims': <String, Object?>{},
       'createdAt': '2026-11-12T10:00:00Z', 'lastSignInAt': '2026-11-12T10:00:00Z',
     };

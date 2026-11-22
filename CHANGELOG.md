@@ -6,6 +6,9 @@
   Winche Auth (JPEG, PNG or WebP, at most 100 KB: shrink it first). Needs
   Winche Auth 2.1 (Winche Server 4). `WincheUser.photoSource` says where
   `photoUrl` came from (`upload`, `link`, `provider:<name>`).
+* `updateProfile()` sends only the fields passed: a field left out stays (a
+  rename no longer clears an uploaded photo). `clearDisplayName` /
+  `clearPhotoUrl` remove a field; `removePhoto()` removes an uploaded photo.
 
 ## 0.1.0
 

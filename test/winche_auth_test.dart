@@ -112,6 +112,31 @@ void main() {
     await app.dispose();
   });
 
+  test('updateProfile changes only the fields passed', () async {
+    final app = newApp();
+    final auth = authFor(app);
+    await auth.signUpWithEmail('ann@example.com', 'correct horse battery', displayName: 'Ann');
+    final uploaded = await auth.updatePhoto([0x89, 0x50, 0x4E, 0x47]);
+
+    // A rename keeps the uploaded photo.
+    final renamed = await auth.updateProfile(displayName: 'Ann K');
+    expect((renamed.displayName, renamed.photoUrl, renamed.photoSource), ('Ann K', uploaded.photoUrl, 'upload'));
+    expect(server.photos[renamed.uid], isNotNull);
+
+    // A photo link alone keeps the name.
+    final linked = await auth.updateProfile(photoUrl: 'https://example.com/ann.png');
+    expect((linked.displayName, linked.photoUrl, linked.photoSource), ('Ann K', 'https://example.com/ann.png', 'link'));
+
+    // clearPhotoUrl clears it, the name stays; clearDisplayName clears the name.
+    final cleared = await auth.updateProfile(clearPhotoUrl: true);
+    expect(cleared.displayName, 'Ann K');
+    expect(cleared.photoUrl, isNull);
+    expect((await auth.updateProfile(clearDisplayName: true)).displayName, isNull);
+
+    expect(() => auth.updateProfile(photoUrl: 'x', clearPhotoUrl: true), throwsArgumentError);
+    await app.dispose();
+  });
+
   test('signing out works offline; profile updates reach userChanges', () async {
     final app = newApp();
     final auth = authFor(app);
