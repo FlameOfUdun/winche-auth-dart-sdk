@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+* `updatePhoto(bytes)` and `removePhoto()`: the signed-in user's photo, kept by
+  Winche Auth (JPEG, PNG or WebP, at most 100 KB: shrink it first). Needs
+  Winche Auth 2.1 (Winche Server 4). `WincheUser.photoSource` says where
+  `photoUrl` came from (`upload`, `link`, `provider:<name>`).
+
 ## 0.1.0
 
 Docs: **Users in database documents**: `Link.user(uid)` in a document, expanded by `winche_database` into the user's

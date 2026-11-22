@@ -6,6 +6,10 @@ final class WincheUser {
   final bool emailVerified;
   final String? displayName;
   final String? photoUrl;
+
+  /// Where [photoUrl] came from: `upload` ([WincheAuth.updatePhoto]), `link`,
+  /// `provider:<name>` (a sign-in provider's picture), or null.
+  final String? photoSource;
   final bool isAnonymous;
 
   /// Whether two-step sign-in (an authenticator app) is on.
@@ -27,6 +31,7 @@ final class WincheUser {
     this.emailVerified = false,
     this.displayName,
     this.photoUrl,
+    this.photoSource,
     this.isAnonymous = false,
     this.mfaEnabled = false,
     List<String> providers = const [],
@@ -42,6 +47,7 @@ final class WincheUser {
         emailVerified: json['emailVerified'] as bool? ?? false,
         displayName: json['displayName'] as String?,
         photoUrl: json['photoUrl'] as String?,
+        photoSource: json['photoSource'] as String?,
         isAnonymous: json['isAnonymous'] as bool? ?? false,
         mfaEnabled: json['mfaEnabled'] as bool? ?? false,
         providers: [for (final p in (json['providers'] as List<Object?>? ?? const [])) p as String],
@@ -56,6 +62,7 @@ final class WincheUser {
         'emailVerified': emailVerified,
         'displayName': displayName,
         'photoUrl': photoUrl,
+        'photoSource': photoSource,
         'isAnonymous': isAnonymous,
         'mfaEnabled': mfaEnabled,
         'providers': providers,

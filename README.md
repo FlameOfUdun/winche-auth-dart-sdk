@@ -62,7 +62,7 @@ here. If an account with the same verified email already exists, sign-in throws
 
 `currentUser` (uid, email, emailVerified, displayName, photoUrl, isAnonymous, providers, customClaims),
 `authStateChanges()` (sign-in and out), `userChanges()` (any change), `getTokenClaims()`, `reload()`,
-`updateProfile()`, `changePassword()`, `changeEmail()` (the new address confirms; the old one gets an undo link),
+`updateProfile()`, `updatePhoto(bytes)` / `removePhoto()` (a small image Winche Auth keeps: shrink it to 256 × 256 first), `changePassword()`, `changeEmail()` (the new address confirms; the old one gets an undo link),
 `sendEmailVerification()`, `linkWithPassword()`, `linkWithIdToken()`, `unlink()`, `deleteAccount()`.
 
 ## Users in database documents

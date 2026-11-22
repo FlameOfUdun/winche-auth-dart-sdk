@@ -10,12 +10,21 @@ final class FakeAuthServer {
   final List<String> calls = [];
   bool down = false;
   final Set<String> mfaUsers = {};   // emails that need a second step
+  final Map<String, List<int>?> photos = {};   // uid → uploaded photo
   int _next = 0;
 
   late final http.Client client = MockClient((request) async {
     final path = request.url.path.replaceFirst('/auth/v1/', '');
     calls.add(path);
     if (down) throw http.ClientException('connection refused');
+    if (path == 'me/photo') {
+      final uid = _uidOf(request);
+      if (uid == null) return _error(401, 'UNAUTHENTICATED', 'Sign in first.');
+      final email = users.entries.firstWhere((e) => e.value.uid == uid).key;
+      photos[uid] = request.method == 'POST' ? request.bodyBytes : null;
+      final user = {..._user(email), 'photoUrl': photos[uid] == null ? null : 'https://api.example.com/auth/v1/photos/p$uid', 'photoSource': photos[uid] == null ? null : 'upload'};
+      return http.Response(jsonEncode(user), 200, headers: {'content-type': 'application/json'});
+    }
     final body = request.body.isEmpty ? <String, Object?>{} : jsonDecode(request.body) as Map<String, Object?>;
     switch (path) {
       case 'signUp':

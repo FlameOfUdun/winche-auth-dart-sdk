@@ -121,13 +121,19 @@ void main() {
     await pumpEventQueue();
     await auth.updateProfile(displayName: 'Ann K');
     expect(auth.currentUser?.displayName, 'Ann K');
+    // A photo: the image's bytes as they are; the user points at it; removed again.
+    final png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    final withPhoto = await auth.updatePhoto(png);
+    expect((withPhoto.photoSource, withPhoto.photoUrl), ('upload', 'https://api.example.com/auth/v1/photos/p${withPhoto.uid}'));
+    expect(server.photos[withPhoto.uid], png);
+    expect((await auth.removePhoto()).photoUrl, isNull);
 
     server.down = true;
     await auth.signOut();
     expect(auth.currentUser, isNull);
     expect(await auth.getAuthToken(), isNull);
     await pumpEventQueue();
-    expect(names, [null, 'Ann K', null]);
+    expect(names, [null, 'Ann K', 'Ann K', 'Ann K', null]);   // the photo's two changes are user changes too
     await expectLater(auth.updateProfile(displayName: 'x'), throwsA(isA<WincheUnboundException>()));
     await sub.cancel();
     await app.dispose();

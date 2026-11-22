@@ -261,6 +261,23 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
     return currentUser!;
   }
 
+  /// Uploads [image] as the signed-in user's photo, kept by Winche Auth: JPEG,
+  /// PNG or WebP, at most 100 KB, so shrink it first (256 × 256 is plenty).
+  /// [WincheUser.photoUrl] then points at it, a new address each time.
+  Future<WincheUser> updatePhoto(List<int> image) async {
+    final body = await _authed((t) => _send('POST', 'me/photo', null, token: t, bytes: image));
+    await _setUser(WincheUser.fromJson(body));
+    return currentUser!;
+  }
+
+  /// Removes the photo uploaded with [updatePhoto]; a sign-in provider's picture
+  /// comes back at the next sign-in with it.
+  Future<WincheUser> removePhoto() async {
+    final body = await _authed((t) => _send('DELETE', 'me/photo', null, token: t));
+    await _setUser(WincheUser.fromJson(body));
+    return currentUser!;
+  }
+
   /// Changes the password; the user's other sessions end, this one continues.
   Future<WincheUser> changePassword(String currentPassword, String newPassword) => _signIn(
       'me/password', {'currentPassword': currentPassword, 'newPassword': newPassword},
@@ -371,13 +388,15 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   /// Through `app.http`, adding this service's own token where one is needed:
   /// its 401s mean a wrong password or a missing second step, not a stale
   /// token, and it refreshes tokens itself before they expire.
-  Future<Map<String, Object?>> _send(String method, String path, Map<String, Object?>? body, {String? token}) async {
+  Future<Map<String, Object?>> _send(String method, String path, Map<String, Object?>? body, {String? token, List<int>? bytes}) async {
     final WincheResponse response;
     try {
       response = await app.http.send(WincheRequest(method, _endpoint(path),
           json: body,
+          bytes: bytes,
           headers: {
             'accept': 'application/json',
+            if (bytes != null) 'content-type': 'application/octet-stream',
             'x-winche-client': 'winche_auth-dart',
             if (token != null) 'authorization': 'Bearer $token',
           },
