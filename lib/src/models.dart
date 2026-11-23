@@ -119,7 +119,7 @@ final class WincheMfaStatus {
 }
 
 /// What an emailed link's code is for: [mode] is `verifyEmail`,
-/// `verifyAndChangeEmail`, `recoverEmail`, `resetPassword` or `signIn`.
+/// `verifyAndChangeEmail`, `recoverEmail`, `unlinkProvider`, `resetPassword` or `signIn`.
 final class WincheActionCodeInfo {
   final String mode;
   final String email;
