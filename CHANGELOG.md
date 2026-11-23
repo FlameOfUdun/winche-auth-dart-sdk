@@ -9,6 +9,13 @@
 * `updateProfile()` sends only the fields passed: a field left out stays (a
   rename no longer clears an uploaded photo). `clearDisplayName` /
   `clearPhotoUrl` remove a field; `removePhoto()` removes an uploaded photo.
+* A call to Winche Auth's own `me` endpoints refused with a bare
+  `unauthenticated` (Winche Auth 2.1: the session was ended by signing out
+  everywhere, an admin, or the email's owner claiming the account) refreshes
+  the token once: if the session is over the user is signed out
+  (`currentUser` null, `userChanges` emits null) and the error is thrown;
+  if only the token was stale, the call is retried once. Errors with a
+  `reason` are unchanged.
 
 ## 0.1.0
 

@@ -241,4 +241,50 @@ void main() {
     expect(auth.currentUser, isNull);
     await app.dispose();
   });
+
+  test("a call refused because the session ended signs out", () async {
+    final app = newApp();
+    final auth = authFor(app);
+    await auth.signUpWithEmail('ann@example.com', 'correct horse battery');
+    final users = <String?>[];
+    final sub = auth.userChanges().listen((u) => users.add(u?.uid));
+    await pumpEventQueue();
+    server.endSessions('u1');
+    await expectLater(auth.updateProfile(displayName: 'Ann K'),
+        throwsA(isA<WincheAuthException>().having((e) => e.code, 'code', WincheErrorCode.unauthenticated).having((e) => e.reason, 'reason', isNull)));
+    expect(auth.currentUser, isNull);
+    expect(await auth.getAuthToken(), isNull);
+    await pumpEventQueue();
+    expect(users, ['u1', null]);
+    expect(server.calls.where((c) => c == 'me'), hasLength(1));   // not retried: the refresh ended the session
+    await sub.cancel();
+    await app.dispose();
+  });
+
+  test('a call refused with a stale access token refreshes and retries once', () async {
+    final app = newApp();
+    final auth = authFor(app);
+    await auth.signUpWithEmail('ann@example.com', 'correct horse battery');
+    final before = await auth.getAuthToken();
+    server.refuseIssuedAccessTokens();
+    final user = await auth.updateProfile(displayName: 'Ann K');
+    expect(user.displayName, 'Ann K');
+    expect(await auth.getAuthToken(), isNot(before));
+    expect(server.calls.where((c) => c == 'me'), hasLength(2));
+    expect(server.calls.where((c) => c == 'token'), hasLength(1));
+    await app.dispose();
+  });
+
+  test('a 401 with a reason is passed through: no refresh, no retry', () async {
+    final app = newApp();
+    final auth = authFor(app);
+    await auth.signUpWithEmail('ann@example.com', 'correct horse battery');
+    server.meRefusal = WincheAuthReason.requiresRecentSignIn;
+    await expectLater(auth.updateProfile(displayName: 'Ann K'),
+        throwsA(isA<WincheAuthException>().having((e) => e.reason, 'reason', WincheAuthReason.requiresRecentSignIn)));
+    expect(auth.currentUser?.uid, 'u1');
+    expect(server.calls.where((c) => c == 'me'), hasLength(1));
+    expect(server.calls.where((c) => c == 'token'), isEmpty);
+    await app.dispose();
+  });
 }

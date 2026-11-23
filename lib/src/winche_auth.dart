@@ -347,10 +347,23 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
     return currentUser!;
   }
 
+  /// Runs [call] with the user's token. A bare `unauthenticated` (no reason)
+  /// is Winche Auth refusing that token, its session ended or the token stale:
+  /// one forced refresh tells which. If the refresh ends the session the user
+  /// is signed out and the refusal is thrown; otherwise [call] runs once more
+  /// with the new token. Refusals with a reason are thrown as they are.
   Future<T> _authed<T>(Future<T> Function(String token) call) async {
     final token = await getAuthToken();
     if (token == null) throw WincheUnboundException();
-    return call(token);
+    final session = _session;
+    try {
+      return await call(token);
+    } on WincheAuthException catch (e) {
+      if (e.code != WincheErrorCode.unauthenticated || e.reason != null || !identical(_session, session)) rethrow;
+      final fresh = await getAuthToken(forceRefresh: true);
+      if (fresh == null || fresh == token) rethrow;
+      return call(fresh);
+    }
   }
 
   Future<void> _setUser(WincheUser user) async {

@@ -12,12 +12,21 @@ final class FakeAuthServer {
   final Set<String> mfaUsers = {};   // emails that need a second step
   final Map<String, List<int>?> photos = {};   // uid → uploaded photo
   final Map<String, ({String url, String source})> photoUrls = {};   // uid → the user's photoUrl
+  final Map<String, String> accessTokens = {};   // access token issued → uid
+  final Set<String> refusedAccessTokens = {};   // tokens whose session the server no longer accepts on me/...
+  String? meRefusal;   // when set, me/... answers 401 with this reason (e.g. REQUIRES_RECENT_SIGN_IN)
   int _next = 0;
 
   late final http.Client client = MockClient((request) async {
     final path = request.url.path.replaceFirst('/auth/v1/', '');
     calls.add(path);
     if (down) throw http.ClientException('connection refused');
+    if (path == 'me' || path.startsWith('me/')) {
+      // As Winche Auth 2.1: a token whose session has ended gets a bare 401 (no reason) on its own endpoints.
+      final token = request.headers['Authorization']?.substring(7);
+      if (token == null || refusedAccessTokens.contains(token)) return _bareUnauthenticated();
+      if (meRefusal != null) return _error(401, meRefusal!, 'Refused.');
+    }
     if (path == 'me/photo') {
       final uid = _uidOf(request);
       if (uid == null) return _error(401, 'UNAUTHENTICATED', 'Sign in first.');
@@ -96,6 +105,23 @@ final class FakeAuthServer {
     return _error(404, 'NOT_FOUND', 'No such endpoint: $path');
   });
 
+  /// Ends [uid]'s sessions as signing out everywhere does: the refresh tokens
+  /// are refused and so are the access tokens already handed out.
+  void endSessions(String uid) {
+    revoke(uid);
+    accessTokens.forEach((t, u) {
+      if (u == uid) refusedAccessTokens.add(t);
+    });
+  }
+
+  /// Refuses the access tokens handed out so far while the sessions stand
+  /// (a refresh gives a token that works).
+  void refuseIssuedAccessTokens() => refusedAccessTokens.addAll(accessTokens.keys);
+
+  static http.Response _bareUnauthenticated() => http.Response(
+      jsonEncode({'error': {'code': 'unauthenticated', 'message': 'Sign in first: send a Winche Auth access token.'}}), 401,
+      headers: {'content-type': 'application/json'});
+
   /// Ends every session of [uid], as disabling them on the server would.
   void revoke(String uid) => refreshTokens.removeWhere((_, u) => u == uid);
 
@@ -121,6 +147,7 @@ final class FakeAuthServer {
     final refresh = 'r${++_next}';
     refreshTokens[refresh] = u.uid;
     final payload = base64Url.encode(utf8.encode(jsonEncode({'uid': u.uid, 'sub': u.uid, 'n': _next}))).replaceAll('=', '');
+    accessTokens['h.$payload.s'] = u.uid;
     return http.Response(jsonEncode({
       'accessToken': 'h.$payload.s', 'expiresIn': 900, 'expiresAt': '2026-11-12T10:15:00Z', 'refreshToken': refresh,
       'user': _user(email, anonymous: anonymous),
