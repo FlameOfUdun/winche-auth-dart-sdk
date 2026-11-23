@@ -14,7 +14,8 @@ final class FakeAuthServer {
   final Map<String, ({String url, String source})> photoUrls = {};   // uid → the user's photoUrl
   final Map<String, String> accessTokens = {};   // access token issued → uid
   final Set<String> refusedAccessTokens = {};   // tokens whose session the server no longer accepts on me/...
-  String? meRefusal;   // when set, me/... answers 401 with this reason (e.g. REQUIRES_RECENT_SIGN_IN)
+  String? meRefusal;
+  Future<void> Function()? whileRefreshing;   // runs once, as a refresh is being answered   // when set, me/... answers 401 with this reason (e.g. REQUIRES_RECENT_SIGN_IN)
   int _next = 0;
 
   late final http.Client client = MockClient((request) async {
@@ -68,6 +69,9 @@ final class FakeAuthServer {
         return _tokens('ext');
       case 'token':
         final uid = refreshTokens.remove(body['refreshToken']);
+        final meanwhile = whileRefreshing;
+        whileRefreshing = null;
+        await meanwhile?.call();
         if (uid == null) return _error(401, 'INVALID_REFRESH_TOKEN', 'The session has ended.');
         return _tokens(users.entries.firstWhere((e) => e.value.uid == uid).key);
       case 'signOut':

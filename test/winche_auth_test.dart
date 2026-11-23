@@ -287,4 +287,20 @@ void main() {
     expect(server.calls.where((c) => c == 'token'), isEmpty);
     await app.dispose();
   });
+
+  test('a call is never retried as someone else who signed in while it refreshed', () async {
+    final app = newApp();
+    final auth = authFor(app);
+    await auth.signUpWithEmail('ann@example.com', 'correct horse battery');
+    server.refuseIssuedAccessTokens();
+    server.whileRefreshing = () async {
+      await auth.signOut();
+      await auth.signUpWithEmail('bob@example.com', 'correct horse battery');
+    };
+    await expectLater(auth.updateProfile(displayName: 'Ann K'), throwsA(isA<WincheAuthException>()));
+    expect(auth.currentUser?.email, 'bob@example.com');
+    expect(auth.currentUser?.displayName, isNot('Ann K'));
+    expect(server.users['bob@example.com']?.displayName, isNot('Ann K'));
+    await app.dispose();
+  });
 }

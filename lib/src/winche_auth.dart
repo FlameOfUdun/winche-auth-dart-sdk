@@ -362,6 +362,8 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
       if (e.code != WincheErrorCode.unauthenticated || e.reason != null || !identical(_session, session)) rethrow;
       final fresh = await getAuthToken(forceRefresh: true);
       if (fresh == null || fresh == token) rethrow;
+      // Someone else signed in while it refreshed: never retried as them.
+      if (_session?.user.uid != session?.user.uid) rethrow;
       return call(fresh);
     }
   }
