@@ -16,6 +16,11 @@
   (`currentUser` null, `userChanges` emits null) and the error is thrown;
   if only the token was stale, the call is retried once. Errors with a
   `reason` are unchanged.
+* A saved session that can't be read on start (a keychain locked while the app
+  launches in the background) is kept, not deleted: `ready` completes signed
+  out for now, and the next `getAuthToken` reads it again and restores the
+  user, unless they signed in or out meanwhile. Only a saved value that isn't
+  a session is deleted.
 
 ## 0.1.0
 

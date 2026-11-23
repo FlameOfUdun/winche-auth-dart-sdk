@@ -303,4 +303,76 @@ void main() {
     expect(server.users['bob@example.com']?.displayName, isNot('Ann K'));
     await app.dispose();
   });
+
+  // A keychain locked while the app launches in the background: reads fail, then work.
+  Future<(WincheMemoryAuthStorage, String)> savedSession() async {
+    final storage = WincheMemoryAuthStorage();
+    final first = newApp();
+    server.users['ann@example.com'] = (uid: 'u-ann', password: 'correct horse battery', displayName: null);
+    await authFor(first, storage: storage).signInWithEmail('ann@example.com', 'correct horse battery');
+    await first.dispose();
+    return (storage, first.name);
+  }
+
+  test('a failed read of the saved session keeps it, and ready completes signed out for now', () async {
+    final (saved, name) = await savedSession();
+    final storage = _LockedStorage(saved);
+    final auth = authFor(WincheApp(name, options: options), storage: storage);
+    await auth.ready;
+    expect(auth.currentUser, isNull);
+    expect(storage.deletes, 0);
+    expect(await saved.read('winche_auth.$name'), isNotNull);
+  });
+
+  test('once the storage reads again, the saved user is restored', () async {
+    final (saved, name) = await savedSession();
+    final storage = _LockedStorage(saved);
+    final auth = authFor(WincheApp(name, options: options), storage: storage);
+    await auth.ready;
+    storage.locked = false;
+    expect(await auth.getAuthToken(), isNotNull);
+    expect(auth.currentUser?.uid, 'u-ann');
+  });
+
+  test('a saved session that cannot be parsed is still deleted', () async {
+    final storage = WincheMemoryAuthStorage();
+    final app = newApp();
+    await storage.write('winche_auth.${app.name}', 'not a session');
+    final auth = authFor(app, storage: storage);
+    await auth.ready;
+    expect(auth.currentUser, isNull);
+    expect(await storage.read('winche_auth.${app.name}'), isNull);
+    await app.dispose();
+  });
+
+  test('signing in after a failed read is never overwritten by the old session', () async {
+    final (saved, name) = await savedSession();
+    final storage = _LockedStorage(saved);
+    final auth = authFor(WincheApp(name, options: options), storage: storage);
+    await auth.ready;
+    storage.locked = false;
+    await auth.signUpWithEmail('bob@example.com', 'correct horse battery');
+    expect(await auth.getAuthToken(), isNotNull);
+    expect(auth.currentUser?.email, 'bob@example.com');
+  });
+}
+
+final class _LockedStorage implements WincheAuthStorage {
+  final WincheAuthStorage _inner;
+  bool locked = true;
+  int deletes = 0;
+  _LockedStorage(this._inner);
+
+  @override
+  Future<String?> read(String key) async => locked ? throw StateError('keychain locked') : _inner.read(key);
+
+  @override
+  Future<void> write(String key, String value) => _inner.write(key, value);
+
+  @override
+  Future<void> delete(String key) async {
+    deletes++;
+    if (locked) throw StateError('keychain locked');
+    await _inner.delete(key);
+  }
 }

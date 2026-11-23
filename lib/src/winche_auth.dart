@@ -35,6 +35,9 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   _Session? _session;
   Future<String?>? _refreshing;
   late final Future<void> ready = _restore();
+  bool _unread = false;   // the saved session couldn't be read yet (a locked keychain)
+  Future<void>? _rereading;
+  int _changes = 0;   // sessions set here: a later read never overrides one
   final StreamController<WincheUser?> _authChanges = StreamController<WincheUser?>.broadcast(sync: true);
   final StreamController<WincheUser?> _userChanges = StreamController<WincheUser?>.broadcast(sync: true);
 
@@ -75,6 +78,7 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   @override
   Future<String?> getAuthToken({bool forceRefresh = false}) async {
     await ready;
+    if (_unread) await (_rereading ??= _restore().whenComplete(() => _rereading = null));
     final session = _session;
     if (session == null) return null;
     if (!forceRefresh && session.expiresAt.difference(_now()) > refreshMargin) return session.accessToken;
@@ -156,7 +160,17 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   Future<void> signOut() async {
     await ready;
     final session = _session;
-    if (session == null) return;
+    if (session == null) {
+      if (_unread) {
+        // Signed out before the saved session could be read: never restore it.
+        _unread = false;
+        _changes++;
+        try {
+          await _storage.delete(_storageKey);
+        } catch (_) {}
+      }
+      return;
+    }
     await _setSession(null);
     try {
       await _post('signOut', {'refreshToken': session.refreshToken});
@@ -378,6 +392,8 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   Future<void> _setSession(_Session? next) async {
     final previous = _session;
     _session = next;
+    _unread = false;
+    _changes++;
     if (next == null) {
       await _storage.delete(_storageKey);
     } else {
@@ -392,15 +408,33 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
     _userChanges.add(next?.user);
   }
 
+  /// Reads the saved session. If the storage can't be read now (a keychain
+  /// locked while the app launches in the background), the session is kept
+  /// and the user is signed out for now: [getAuthToken] reads it again. Only a
+  /// saved value that isn't a session is deleted.
   Future<void> _restore() async {
+    final changes = _changes;
+    final String? saved;
     try {
-      final saved = await _storage.read(_storageKey);
-      if (saved == null) return;
-      _session = _Session.fromJson(jsonDecode(saved) as Map<String, Object?>);
+      saved = await _storage.read(_storageKey);
     } catch (_) {
-      await _storage.delete(_storageKey);   // unreadable: start signed out
+      _unread = _changes == changes;
       return;
     }
+    if (_changes != changes) return;   // signed in or out meanwhile
+    _unread = false;
+    if (saved == null) return;
+    final _Session session;
+    try {
+      session = _Session.fromJson(jsonDecode(saved) as Map<String, Object?>);
+    } catch (_) {
+      try {
+        await _storage.delete(_storageKey);   // not a session: start signed out
+      } catch (_) {}
+      return;
+    }
+    if (_changes != changes) return;
+    _session = session;
     notifyIdentityChanged(_session!.identity);
     _authChanges.add(_session!.user);
     _userChanges.add(_session!.user);
