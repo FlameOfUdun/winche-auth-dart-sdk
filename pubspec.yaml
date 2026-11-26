@@ -1,6 +1,6 @@
 name: winche_auth
 description: Dart client for Winche Auth — email and password, anonymous, email-link, Google, Apple and OpenID Connect sign-in, with tokens refreshed for winche_database and winche_storage.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/FlameOfUdun/winche-auth-dart-sdk
 issue_tracker: https://github.com/FlameOfUdun/winche-auth-dart-sdk/issues
 
@@ -13,7 +13,7 @@ environment:
   sdk: ^3.10.0
 
 dependencies:
-  winche_core: ^1.0.0
+  winche_core: ^1.1.1
   meta: ^1.16.0
 
 dev_dependencies:
