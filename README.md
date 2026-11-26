@@ -34,7 +34,7 @@ Or add them to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  winche_core: ^1.0.0
+  winche_core: ^1.1.1
   winche_auth: ^0.2.0
 ```
 
