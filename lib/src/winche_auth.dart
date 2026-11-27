@@ -36,6 +36,7 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   Future<String?>? _refreshing;
   late final Future<void> ready = _restore();
   bool _unread = false;   // the saved session couldn't be read yet (a locked keychain)
+  bool _deletePending = false;   // signed out while it couldn't be deleted (locked): deleted when it can be
   Future<void>? _rereading;
   int _changes = 0;   // sessions set here: a later read never overrides one
   final StreamController<WincheUser?> _authChanges = StreamController<WincheUser?>.broadcast(sync: true);
@@ -78,6 +79,7 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   @override
   Future<String?> getAuthToken({bool forceRefresh = false}) async {
     await ready;
+    if (_deletePending) await _retryDelete();
     if (_unread) await (_rereading ??= _restore().whenComplete(() => _rereading = null));
     final session = _session;
     if (session == null) return null;
@@ -165,9 +167,8 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
         // Signed out before the saved session could be read: never restore it.
         _unread = false;
         _changes++;
-        try {
-          await _storage.delete(_storageKey);
-        } catch (_) {}
+        _deletePending = true;
+        await _retryDelete();
       }
       return;
     }
@@ -388,11 +389,31 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
     await _setSession(session.withUser(user));
   }
 
+  /// A sign-out whose delete the storage refused (a locked keychain): the saved session is deleted now if it can be,
+  /// and the server's session it names ended too; else left pending, tried again on the next token asked for.
+  Future<void> _retryDelete() async {
+    String? saved;
+    try {
+      saved = await _storage.read(_storageKey);
+      await _storage.delete(_storageKey);
+    } catch (_) {
+      return;   // still locked
+    }
+    _deletePending = false;
+    try {
+      final refresh = saved == null ? null : _Session.fromJson(jsonDecode(saved) as Map<String, Object?>).refreshToken;
+      if (refresh != null) await _post('signOut', {'refreshToken': refresh});
+    } catch (_) {
+      // Deleted here; the server's session expires on its own.
+    }
+  }
+
   /// Saves [next], then tells core and listeners what changed.
   Future<void> _setSession(_Session? next) async {
     final previous = _session;
     _session = next;
     _unread = false;
+    _deletePending = false;   // what's saved now is this
     _changes++;
     if (next == null) {
       await _storage.delete(_storageKey);

@@ -345,6 +345,18 @@ void main() {
     await app.dispose();
   });
 
+  test('signing out while the keychain is locked deletes the saved session once it unlocks', () async {
+    final (saved, name) = await savedSession();
+    final storage = _LockedStorage(saved);
+    final auth = authFor(WincheApp(name, options: options), storage: storage);
+    await auth.ready;
+    await auth.signOut();   // the delete is refused: locked
+    expect(await saved.read('winche_auth.$name'), isNotNull);
+    storage.locked = false;
+    expect(await auth.getAuthToken(), isNull);   // still signed out…
+    expect(await saved.read('winche_auth.$name'), isNull);   // …and the session is gone, so the next launch is too
+  });
+
   test('signing in after a failed read is never overwritten by the old session', () async {
     final (saved, name) = await savedSession();
     final storage = _LockedStorage(saved);
