@@ -393,8 +393,11 @@ final class WincheAuth extends WincheService with WincheIdentitySource {
   /// and the server's session it names ended too; else left pending, tried again on the next token asked for.
   Future<void> _retryDelete() async {
     String? saved;
+    final changes = _changes;
     try {
       saved = await _storage.read(_storageKey);
+      // Signed in (or out) while it was read: what's saved now is that session's, never deleted here.
+      if (_changes != changes || !_deletePending) return;
       await _storage.delete(_storageKey);
     } catch (_) {
       return;   // still locked
